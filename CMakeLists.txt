@@ -8,7 +8,7 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   tf
 )
-
+find_package(yaml-cpp REQUIRED)
 find_package(gazebo REQUIRED)
 find_package(PCL REQUIRED)
 find_package(ODE REQUIRED)
@@ -24,6 +24,8 @@ include_directories(
          include
         ${catkin_INCLUDE_DIRS}
         ${PCL_INCLUDE_DIRS}
+        ${YAML_CPP_INCLUDE_DIR}
+
 )
 
 catkin_package(
@@ -33,6 +35,6 @@ catkin_package(
 )
 
 add_library(livox_laser_simulation SHARED src/livox_points_plugin.cpp src/livox_ode_multiray_shape.cpp)
-target_link_libraries(livox_laser_simulation ${catkin_LIBRARIES} RayPlugin)
+target_link_libraries(livox_laser_simulation ${catkin_LIBRARIES} RayPlugin  ${YAML_CPP_LIBRARIES})
 
 target_link_libraries(livox_laser_simulation libprotobuf.so.9)
