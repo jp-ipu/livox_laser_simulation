@@ -3,19 +3,34 @@
 //
 
 #include "livox_laser_simulation/livox_points_plugin.h"
+#include <pcl/common/transforms.h>
+#include <pcl/point_cloud.h>
+#include <pcl_conversions/pcl_conversions.h>
+#include <ros/package.h>
 #include <ros/ros.h>
 #include <sensor_msgs/PointCloud2.h>
-#include <ignition/math/Vector3.hh>
+#include <filesystem>
 #include <gazebo/physics/Model.hh>
 #include <gazebo/physics/MultiRayShape.hh>
 #include <gazebo/physics/PhysicsEngine.hh>
 #include <gazebo/physics/World.hh>
 #include <gazebo/sensors/RaySensor.hh>
 #include <gazebo/transport/Node.hh>
-#include <pcl_conversions/pcl_conversions.h>
+#include <ignition/math/Vector3.hh>
+#include <iostream>
 #include <limits>
 #include "livox_laser_simulation/csv_reader.hpp"
 #include "livox_laser_simulation/livox_ode_multiray_shape.h"
+#include "yaml-cpp/yaml.h"
+
+// std::experimental::filesystem::path cwd = std::experimental::filesystem::current_path() / "offset.yaml";
+
+std::string pkg_path = ros::package::getPath("livox_laser_simulation");
+std::string constants_path = pkg_path + "/config/offset.yaml";
+
+YAML::Node offset_main = YAML::LoadFile(constants_path);
+YAML::Node topic_config = offset_main["topic"];
+std::string topic_name_config = topic_config.as<std::string>();
 
 namespace gazebo {
 
@@ -130,6 +145,31 @@ void LivoxPointsPlugin::OnNewLaserScans() {
         // auto &scan_points = scan_point.points;
         pcl::PointCloud<pcl::PointXYZI> scan_points;
 
+        pcl::PointCloud<pcl::PointXYZI> final_cloud;
+
+        // auto trans_offset = topic_config["trans"];
+        YAML::Node trans_offset = offset_main["pose"]["trans"];
+        YAML::Node rot_offset = offset_main["pose"]["rot"];
+        float x = trans_offset["x_pos"].as<float>();
+        float y = trans_offset["y_pos"].as<float>();
+        float z = trans_offset["z_pos"].as<float>();
+
+        float roll = rot_offset["roll"].as<float>();
+        float pitch = rot_offset["pitch"].as<float>();
+        float yaw = rot_offset["yaw"].as<float>();
+
+        Eigen::Affine3f transform = Eigen::Affine3f::Identity();
+
+        transform.translation() << x, y, z;
+
+        transform.rotate(Eigen::AngleAxisf(roll, Eigen::Vector3f::UnitX()));
+        transform.rotate(Eigen::AngleAxisf(pitch, Eigen::Vector3f::UnitY()));
+        transform.rotate(Eigen::AngleAxisf(yaw, Eigen::Vector3f::UnitZ()));
+
+        // rot_element.Euler(ignition::math::Vector3d(roll, pitch, yaw));
+
+        std::string topic_name = raySensor->Name();
+
         for (auto &pair : points_pair) {
             int verticle_index = roundf((pair.second.zenith - verticle_min) / verticle_incre);
             int horizon_index = roundf((pair.second.azimuth - angle_min) / angle_incre);
@@ -160,6 +200,7 @@ void LivoxPointsPlugin::OnNewLaserScans() {
                 } else if (range <= RangeMin()) {
                     range = std::numeric_limits<double>::quiet_NaN();
                 }
+
                 auto point = range * axis;
                 pcl::PointXYZI scan_pt;
                 scan_pt.x = point.X();
@@ -169,7 +210,9 @@ void LivoxPointsPlugin::OnNewLaserScans() {
                 if (!useInf && range == RangeMax()) {
                     scan_pt.intensity = std::numeric_limits<float>::infinity();
                 }
+                // pcl::transformPointCloud(scan_points, transformed_cloud, transform);
                 scan_points.push_back(scan_pt);
+
             } else {
                 //                ROS_INFO_STREAM("count is wrong:" << verticle_index << "," << verticalRayCount << ","
                 //                << horizon_index
@@ -177,12 +220,24 @@ void LivoxPointsPlugin::OnNewLaserScans() {
                 //                          pair.second.azimuth);
             }
         }
-        if (scanPub && scanPub->HasConnections()) scanPub->Publish(laserMsg);
+        if (scanPub && scanPub->HasConnections()) {
+            scanPub->Publish(laserMsg);
+        }
         sensor_msgs::PointCloud2 scan_points_msg;
-        pcl::toROSMsg(scan_points, scan_points_msg);
-        scan_points_msg.header.stamp = ros::Time::now();
-        scan_points_msg.header.frame_id = raySensor->Name();
-        rosPointPub.publish(scan_points_msg);
+        if (topic_name == topic_name_config) {
+            pcl::transformPointCloud(scan_points, final_cloud, transform);
+            pcl::toROSMsg(final_cloud, scan_points_msg);
+
+            scan_points_msg.header.stamp = ros::Time::now();
+            scan_points_msg.header.frame_id = raySensor->Name();
+            rosPointPub.publish(scan_points_msg);
+
+        } else {
+            pcl::toROSMsg(scan_points, scan_points_msg);
+            scan_points_msg.header.stamp = ros::Time::now();
+            scan_points_msg.header.frame_id = raySensor->Name();
+            rosPointPub.publish(scan_points_msg);
+        }
         ros::spinOnce();
     }
 }
@@ -197,8 +252,10 @@ void LivoxPointsPlugin::InitializeRays(std::vector<std::pair<int, AviaRotateInfo
     int ray_index = 0;
     auto ray_size = rays.size();
     points_pair.reserve(rays.size());
+
     for (int k = currStartIndex; k < end_index; k += downSample) {
         auto index = k % maxPointSize;
+
         auto &rotate_info = aviaInfos[index];
         ray.Euler(ignition::math::Vector3d(0.0, rotate_info.zenith, rotate_info.azimuth));
         auto axis = offset.Rot() * ray * ignition::math::Vector3d(1.0, 0.0, 0.0);
@@ -357,4 +414,4 @@ void LivoxPointsPlugin::SendRosTf(const ignition::math::Pose3d &pose, const std:
         tf::StampedTransform(tf, ros::Time::now(), raySensor->ParentName(), raySensor->Name()));
 }
 
-}
+}  // namespace gazebo
