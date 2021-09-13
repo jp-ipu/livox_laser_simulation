@@ -23,7 +23,7 @@
 #include "livox_laser_simulation/livox_ode_multiray_shape.h"
 #include "yaml-cpp/yaml.h"
 
-// std::experimental::filesystem::path cwd = std::experimental::filesystem::current_path() / "offset.yaml";
+// Reading yaml file for offset correction
 
 std::string pkg_path = ros::package::getPath("livox_laser_simulation");
 std::string constants_path = pkg_path + "/config/offset.yaml";
@@ -147,7 +147,7 @@ void LivoxPointsPlugin::OnNewLaserScans() {
 
         pcl::PointCloud<pcl::PointXYZI> final_cloud;
 
-        // auto trans_offset = topic_config["trans"];
+        // Fetching X,Y,Z and roll,pitch,yaw from YAML file
         YAML::Node trans_offset = offset_main["pose"]["trans"];
         YAML::Node rot_offset = offset_main["pose"]["rot"];
         float x = trans_offset["x_pos"].as<float>();
@@ -157,6 +157,8 @@ void LivoxPointsPlugin::OnNewLaserScans() {
         float roll = rot_offset["roll"].as<float>();
         float pitch = rot_offset["pitch"].as<float>();
         float yaw = rot_offset["yaw"].as<float>();
+
+        // Initializing transformation matrix
 
         Eigen::Affine3f transform = Eigen::Affine3f::Identity();
 
@@ -224,6 +226,8 @@ void LivoxPointsPlugin::OnNewLaserScans() {
             scanPub->Publish(laserMsg);
         }
         sensor_msgs::PointCloud2 scan_points_msg;
+        // Checking topic name from YAML to correct topic name.
+        // Performing offset correction on specified topic.
         if (topic_name == topic_name_config) {
             pcl::transformPointCloud(scan_points, final_cloud, transform);
             pcl::toROSMsg(final_cloud, scan_points_msg);

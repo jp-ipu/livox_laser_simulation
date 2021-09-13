@@ -56,3 +56,8 @@ We can choose the lidar model by selecting different CSV file in scan_mode dir f
 - downsample: 1 // we can increment this para to decrease the consumption
 
 ### This repository is now maintained by CaoMing(https://github.com/EpsAvlc) and LvFengchi. Its appreciate with the help of Caoming!
+
+## Manual Offset seetings
+The branch origin/config_calibration is a temporary solution for correcting the offset error of two lidar simulation.
+
+The File [/config/offset.yaml](/config/offset.yaml) can be used to control the offset by defining the topic name of the lidar data to be corrected with respect to another topic. The the offset in transaltion (x,y,z) and rotation angles (roll ,pitch,yaw) in radiance can be defined.
