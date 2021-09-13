@@ -60,4 +60,4 @@ We can choose the lidar model by selecting different CSV file in scan_mode dir f
 ## Manual Offset seetings
 The branch origin/config_calibration is a temporary solution for correcting the offset error of two lidar simulation.
 
-The File [/config/offset.yaml](/config/offset.yaml) can be used to control the offset by defining the topic name of the lidar data to be corrected with respect to another topic. The the offset in transaltion (x,y,z) and rotation angles (roll ,pitch,yaw) in radiance can be defined.
+The File [/config/offset.yaml](/config/offset.yaml) can be used to control the offset by defining the topic name of the lidar data to be corrected with respect to another topic. The offset in transaltion (x,y,z) and rotation angles (roll ,pitch,yaw) in radian can be defined.
